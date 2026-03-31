@@ -1,147 +1,86 @@
 import requests
-print(requests.__version__)
+import sys
 
 BASE_URL = "http://127.0.0.1:5000"
 
-def print_menu():
-    print("\n--- Inventory CLI ---")
-    print("1. View all items")
-    print("2. Add new item")
-    print("3. Update item")
-    print("4. Delete item")
-    print("5. Find/Add item from OpenFoodFacts barcode")
-    print("6. Exit")
-
-# ---------------------
-# View all items
-# ---------------------
-def get_all_items():
-    res = requests.get(f"{BASE_URL}/inventory")
-    if res.status_code == 200:
-        items = res.json()
-        if not items:
-            print("Inventory is empty.")
-        else:
+def list_inventory():
+    response = requests.get(f"{BASE_URL}/inventory")
+    if response.status_code == 200:
+        items = response.json()
+        if items:
             for item in items:
-                print(item)
+                print(f"{item['id']}: {item['name']} | {item.get('brand', '')} | Qty: {item.get('quantity', 0)} | Price: ${item.get('price', 0)}")
+        else:
+            print("Inventory is empty.")
     else:
         print("Error fetching inventory.")
 
-# ---------------------
-# Add new item manually
-# ---------------------
 def add_item():
     name = input("Enter product name: ")
     brand = input("Enter brand: ")
-    try:
-        quantity = int(input("Enter quantity: "))
-        price = float(input("Enter price: "))
-    except ValueError:
-        print("Invalid input for quantity or price.")
-        return
-
-    payload = {"name": name, "brand": brand, "quantity": quantity, "price": price}
-    res = requests.post(f"{BASE_URL}/inventory", json=payload)
-    if res.status_code == 201:
-        print("Item added:", res.json())
+    quantity = int(input("Enter quantity: "))
+    price = float(input("Enter price: "))
+    data = {"name": name, "brand": brand, "quantity": quantity, "price": price}
+    response = requests.post(f"{BASE_URL}/inventory", json=data)
+    if response.status_code == 201:
+        print("Item added:", response.json())
     else:
         print("Error adding item.")
 
-# ---------------------
-# Update item
-# ---------------------
+def add_item_by_barcode():
+    barcode = input("Enter product barcode: ")
+    response = requests.post(f"{BASE_URL}/inventory/from-barcode/{barcode}")
+    if response.status_code == 201:
+        print("Item added:", response.json())
+    else:
+        print("Error adding item from barcode:", response.json().get("error"))
+
 def update_item():
-    try:
-        item_id = int(input("Enter item ID to update: "))
-    except ValueError:
-        print("Invalid ID.")
-        return
-
-    updates = {}
-    quantity = input("Enter new quantity (leave blank to skip): ")
-    price = input("Enter new price (leave blank to skip): ")
-    
-    if quantity:
-        try:
-            updates["quantity"] = int(quantity)
-        except ValueError:
-            print("Invalid quantity.")
-            return
-    if price:
-        try:
-            updates["price"] = float(price)
-        except ValueError:
-            print("Invalid price.")
-            return
-
-    if not updates:
-        print("Nothing to update.")
-        return
-
-    res = requests.patch(f"{BASE_URL}/inventory/{item_id}", json=updates)
-    if res.status_code == 200:
-        print("Item updated:", res.json())
+    item_id = int(input("Enter item ID to update: "))
+    field = input("Enter field to update (name, brand, quantity, price): ")
+    value = input("Enter new value: ")
+    if field in ["quantity", "price"]:
+        value = float(value) if field == "price" else int(value)
+    response = requests.patch(f"{BASE_URL}/inventory/{item_id}", json={field: value})
+    if response.status_code == 200:
+        print("Item updated:", response.json())
     else:
-        print(res.json()["error"])
+        print("Error updating item:", response.json().get("error"))
 
-# ---------------------
-# Delete item
-# ---------------------
 def delete_item():
-    try:
-        item_id = int(input("Enter item ID to delete: "))
-    except ValueError:
-        print("Invalid ID.")
-        return
-
-    res = requests.delete(f"{BASE_URL}/inventory/{item_id}")
-    if res.status_code == 200:
-        print(res.json()["message"])
+    item_id = int(input("Enter item ID to delete: "))
+    response = requests.delete(f"{BASE_URL}/inventory/{item_id}")
+    if response.status_code == 200:
+        print("Item deleted.")
     else:
-        print(res.json()["error"])
+        print("Error deleting item:", response.json().get("error"))
 
-# ---------------------
-# Find/Add item from barcode
-# ---------------------
-def add_item_from_barcode():
-    barcode = input("Enter barcode: ")
-    # Fetch product info
-    res = requests.get(f"{BASE_URL}/external/{barcode}")
-    if res.status_code == 200:
-        product = res.json()
-        print("Product found:", product)
-        confirm = input("Add to inventory? (y/n): ").lower()
-        if confirm == 'y':
-            res_add = requests.post(f"{BASE_URL}/inventory/from-barcode/{barcode}")
-            if res_add.status_code == 201:
-                print("Product added:", res_add.json())
-            else:
-                print("Error adding product:", res_add.json())
-    else:
-        print("Product not found.")
-
-# ---------------------
-# CLI Loop
-# ---------------------
 def main():
     while True:
-        print_menu()
-        choice = input("Enter choice: ")
+        print("\nInventory CLI")
+        print("1. List inventory")
+        print("2. Add item manually")
+        print("3. Add item by barcode")
+        print("4. Update item")
+        print("5. Delete item")
+        print("6. Exit")
+        choice = input("Choose an option: ")
+
         if choice == "1":
-            get_all_items()
+            list_inventory()
         elif choice == "2":
             add_item()
         elif choice == "3":
-            update_item()
+            add_item_by_barcode()
         elif choice == "4":
-            delete_item()
+            update_item()
         elif choice == "5":
-            add_item_from_barcode()
+            delete_item()
         elif choice == "6":
             print("Exiting CLI.")
-            break
+            sys.exit()
         else:
-            print("Invalid choice. Please try again.")
+            print("Invalid choice, try again.")
 
 if __name__ == "__main__":
     main()
